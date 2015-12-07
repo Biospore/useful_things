@@ -4,13 +4,47 @@ import xml.etree.ElementTree as ET
 
 
 class XMLMarshaller:
+    """
+    A class that provides object marshalling into xml and vise versa.
+    By default its not marshal fields that starts with '__'.
+    This can be changed by '_depth' flag.
+    Use:
+        marshal(<object>)       -> string
+        unmarshal('<filename>') -> object
+    Default types:
+        int
+        bool
+        float
+        complex
+        bytes
+        bytearray
+        str
+        list
+        set
+        frozenset
+        tuple
+        dict
+        None | NoneType
+    """
     _primitive_types = ['int', 'bool', 'float', 'complex', 'bytes', 'bytearray', 'str']
     _sequence_types = ['list', 'set', 'frozenset', 'tuple', 'dict']
     _none = ['NoneType', 'None']
     _builtin = _primitive_types + _sequence_types + _none
     _declaration = "<?xml version='1.0' encoding='utf-8'?>"
+    _depth = False
+
+    def set_deep_marshalling(self, flag):
+        """
+        Sets the depth of the marshalling.
+        """
+        if isinstance(flag, bool):
+            self._depth = flag
 
     def marshal(self, data):
+        """
+        Input: object.
+        Output: xml as string.
+        """
         _root = ET.Element('object')
         _class = self._get_class(data)
         _root.set('type', _class)
@@ -20,6 +54,9 @@ class XMLMarshaller:
         return _tree
 
     def _recursive_marshal(self, data, root, name=None):
+        """
+        Recursive xml tree builder.
+        """
         _class = self._get_class(data)
         if self._is_primitive(_class):
             root.text = str(data)
@@ -63,13 +100,22 @@ class XMLMarshaller:
                 root.set('name', name)
 
     def _sort_attributes(self, fields):
+        """
+        Check depth of the marshalling.
+        """
         _fields = []
         for field in fields:
-            if field[0:2] != '__':
+            if self._depth:
+                _fields.append(field)
+            elif field[0:2] != '__':
                 _fields.append(field)
         return _fields
 
     def unmarshal(self, data):
+        """
+        Input: filename as string.
+        Output: object.
+        """
         tree = ET.parse(data)
         root = tree.getroot()
         _type = self._get_type(root)
@@ -87,6 +133,10 @@ class XMLMarshaller:
         return obj
 
     def _recursive_unmarshal(self, obj, root):
+        """
+        Get the parent object and init all fields of it.
+        Output: reinited object.
+        """
         _type = self._get_type(root)
         if _type == 'NoneType':
             _type = 'None'
@@ -203,15 +253,19 @@ class XMLMarshaller:
             pass
 
     def _get_type(self, obj):
+        """Returns type of object"""
         return obj.attrib['type']
 
     def _get_name(self, obj):
+        """Returns name of object"""
         return obj.attrib['name']
 
     def _get_class(self, obj):
+        """Returns class of the object"""
         return str(type(obj)).split("'")[1]
 
     def _separate_attributes(self, obj):
+        """Separate types from methods"""
         _attributes = dir(obj)
         _fields = []
         _others = []
@@ -224,18 +278,21 @@ class XMLMarshaller:
         return _fields, _others
 
     def _is_builtin(self, obj):
+        """Check objects type(default or not)"""
         if obj in self._builtin:
             return True
         else:
             return False
 
     def _is_sequence(self, obj):
+        """Check objects type(sequence-like or not)"""
         if obj in self._sequence_types:
             return True
         else:
             return False
 
     def _is_primitive(self, obj):
+        """Check objects type(simple or not)"""
         if obj in self._primitive_types:
             return True
         else:
