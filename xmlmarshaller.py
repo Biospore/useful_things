@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 class XMLMarshaller:
     _primitive_types = ['int', 'bool', 'float', 'complex', 'bytes', 'bytearray', 'str']
     _sequence_types = ['list', 'set', 'frozenset', 'tuple', 'dict']
-    _none = ['NoneType']
+    _none = ['NoneType', 'None']
     _builtin = _primitive_types + _sequence_types + _none
     _declaration = "<?xml version='1.0' encoding='utf-8'?>"
 
@@ -75,7 +75,14 @@ class XMLMarshaller:
         _type = self._get_type(root)
         if _type == 'NoneType':
             _type = 'None'
-        obj = eval(_type)
+
+        if not self._is_builtin(_type):
+            _path = _type.split('.')
+            _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+            obj = getattr(_module, _path[-1:][0])
+        else:
+            obj = eval(_type)
+
         obj = self._recursive_unmarshal(obj, root)
         return obj
 
@@ -91,12 +98,25 @@ class XMLMarshaller:
                 _children = root.getchildren()
                 if _type == 'frozenset':
                     _type = 'set'
-                obj = eval(_type +'()')
+
+                if not self._is_builtin(_type):
+                    _path = _type.split('.')
+                    _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                    obj = getattr(_module, _path[-1:][0])
+                else:
+                    obj = eval(_type)
+
                 for child in _children:
                     _ctype = self._get_type(child)
                     if _ctype == 'NoneType':
                         _ctype = 'None'
-                    elem = eval(_ctype)
+                    if not self._is_builtin(_ctype):
+                        _path = _ctype.split('.')
+                        _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                        elem = getattr(_module, _path[-1:][0])
+                    else:
+                        elem = eval(_ctype)
+
                     elem = self._recursive_unmarshal(elem, child)
                     if _type == 'list':
                         obj.append(elem)
@@ -112,7 +132,14 @@ class XMLMarshaller:
                 return obj
             else:
                 _children = root.getchildren()
-                obj = eval(_type)
+
+                if not self._is_builtin(_type):
+                    _path = _type.split('.')
+                    _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                    obj = getattr(_module, _path[-1:][0])
+                else:
+                    obj = eval(_type)
+
                 for child in _children:
                     key = ''
                     value = ''
@@ -121,13 +148,27 @@ class XMLMarshaller:
                             _ntype = self._get_type(node)
                             if _ntype == 'NoneType':
                                 _ntype = 'None'
-                            key = eval(_ntype)
+
+                            if not self._is_builtin(_ntype):
+                                _path = _ntype.split('.')
+                                _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                                key = getattr(_module, _path[-1:][0])
+                            else:
+                                key = eval(_ntype)
+
                             key = self._recursive_unmarshal(key, node)
                         elif node.tag == 'value':
                             _ntype = self._get_type(node)
                             if _ntype == 'NoneType':
                                 _ntype = 'None'
-                            value = eval(_ntype)
+
+                            if not self._is_builtin(_ntype):
+                                _path = _ntype.split('.')
+                                _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                                value = getattr(_module, _path[-1:][0])
+                            else:
+                                value = eval(_ntype)
+
                             value = self._recursive_unmarshal(value, node)
                     obj.setdefault(key)
                     obj[key] = value
@@ -135,12 +176,24 @@ class XMLMarshaller:
 
         elif not self._is_builtin(_type):
             _children = root.getchildren()
-            obj = eval(_type)
+
+            if not self._is_builtin(_type):
+                _path = _type.split('.')
+                _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                elem = getattr(_module, _path[-1:][0])
+            else:
+                elem = eval(_type)
             for child in _children:
                 _ctype = self._get_type(child)
                 if _ctype == 'NoneType':
                     _ctype = 'None'
-                elem = eval(_ctype)
+                if not self._is_builtin(_ctype):
+                    _path = _ctype.split('.')
+                    print(_path)
+                    _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
+                    elem = getattr(_module, _path[-1:][0])
+                else:
+                    elem = eval(_ctype)
                 elem = self._recursive_unmarshal(elem, child)
                 _name = self._get_name(child)
 
@@ -156,7 +209,7 @@ class XMLMarshaller:
         return obj.attrib['name']
 
     def _get_class(self, obj):
-        return type(obj).__name__
+        return str(type(obj)).split("'")[1]
 
     def _separate_attributes(self, obj):
         _attributes = dir(obj)
