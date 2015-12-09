@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 
 import xml.etree.ElementTree as ET
+import marshal as stdm
+import types
 
 
 class XMLMarshaller:
     """
-    A class that provides object marshalling into xml and vise versa.
+    A class that provides object marshalling into xml and vice versa.
     By default its not marshal fields that starts with '__'.
     This can be changed by '_depth' flag.
     Use:
@@ -28,6 +30,7 @@ class XMLMarshaller:
     """
     _primitive_types = ['int', 'bool', 'float', 'complex', 'bytes', 'bytearray', 'str']
     _sequence_types = ['list', 'set', 'frozenset', 'tuple', 'dict']
+    _callable = ['function']
     _none = ['NoneType', 'None']
     _builtin = _primitive_types + _sequence_types + _none
     _declaration = "<?xml version='1.0' encoding='utf-8'?>"
@@ -88,6 +91,23 @@ class XMLMarshaller:
             if name:
                 root.set('name', name)
             _fields, _other = self._separate_attributes(data)
+            for attr in _other:
+                bound = getattr(data, attr)
+                _type = self._get_class(bound)
+                if callable(bound) and self._is_callable(_type):
+                    _code = stdm.dumps(bound.__code__)
+                    meth = ET.SubElement(root, 'callable')
+                    meth.set('name', attr)
+                    meth.text = str(_code)
+                    meth.set('type', _type)
+                    #print(attr)
+                    #print (type(_code))
+                    #print(_code)
+                    #print(str(_code))
+                    #print(type(str(_code)))
+                    #obj = eval(str(_code))
+                    #print(type(obj))
+
             _fields = self._sort_attributes(_fields)
             for value in _fields:
                 _value = getattr(data, value)
@@ -126,10 +146,10 @@ class XMLMarshaller:
             _path = _type.split('.')
             _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
             obj = getattr(_module, _path[-1:][0])
+            obj = eval("obj()")
+            obj = self._recursive_unmarshal(obj, root)
         else:
             obj = eval(_type)
-
-        obj = self._recursive_unmarshal(obj, root)
         return obj
 
     def _recursive_unmarshal(self, obj, root):
@@ -226,31 +246,37 @@ class XMLMarshaller:
 
         elif not self._is_builtin(_type):
             _children = root.getchildren()
-
             if not self._is_builtin(_type):
                 _path = _type.split('.')
                 _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
                 elem = getattr(_module, _path[-1:][0])
             else:
                 elem = eval(_type)
+
             for child in _children:
                 _ctype = self._get_type(child)
                 if _ctype == 'NoneType':
                     _ctype = 'None'
-                if not self._is_builtin(_ctype):
+                elif self._is_callable(_ctype):
+                    elem = None
+                    _code = stdm.loads(eval(child.text))
+                    elem = types.FunctionType(_code, globals())
+
+                elif not self._is_builtin(_ctype):
                     _path = _ctype.split('.')
-                    print(_path)
                     _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
                     elem = getattr(_module, _path[-1:][0])
                 else:
                     elem = eval(_ctype)
-                elem = self._recursive_unmarshal(elem, child)
+                if not self._is_callable(_ctype):
+                    elem = self._recursive_unmarshal(elem, child)
                 _name = self._get_name(child)
-
                 setattr(obj, _name, elem)
             return obj
+
         else:
-            pass
+            print ("Undefined type")
+            raise RuntimeError()
 
     def _get_type(self, obj):
         """Returns type of object"""
@@ -264,6 +290,8 @@ class XMLMarshaller:
         """Returns class of the object"""
         return str(type(obj)).split("'")[1]
 
+
+
     def _separate_attributes(self, obj):
         """Separate types from methods"""
         _attributes = dir(obj)
@@ -276,6 +304,13 @@ class XMLMarshaller:
             else:
                 _fields.append(attr)
         return _fields, _others
+
+    def _is_callable(self, obj):
+        """Returns True if obj is method or function"""
+        if obj in self._callable:
+            return True
+        else:
+            return False
 
     def _is_builtin(self, obj):
         """Check objects type(default or not)"""
