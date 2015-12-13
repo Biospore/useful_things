@@ -2,8 +2,8 @@
 Some useful things.
 
 ## Martian Translator
-Translator from QCTF.
-Rewrited in Python, author unknown.
+Translator from QCTF 2015.
+Rewrited in Python, authors of the idea: developers of the QCTF 2015.
 Can translate from english to martian and vise versa.
 
 ## XMLMarshaller
