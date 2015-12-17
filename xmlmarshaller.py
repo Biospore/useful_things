@@ -65,6 +65,9 @@ class XMLMarshaller:
             root.text = str(data)
             if name:
                 root.set('name', name)
+        elif self._is_callable(_class):
+            _code = stdm.dumps(data.__code__)
+            root.text = str(_code)
         elif self._is_sequence(_class):
             if name:
                 root.set('name', name)
@@ -142,7 +145,10 @@ class XMLMarshaller:
         if _type == 'NoneType':
             _type = 'None'
 
-        if not self._is_builtin(_type):
+        if self._is_callable(_type):
+            obj = None
+            obj = self._recursive_unmarshal(obj, root)
+        elif not self._is_builtin(_type):
             _path = _type.split('.')
             _module = __import__(".".join(_path[0:-1]), fromlist=[_path[-1:]])
             obj = getattr(_module, _path[-1:][0])
@@ -162,6 +168,10 @@ class XMLMarshaller:
             _type = 'None'
         if self._is_primitive(_type):
             obj = eval(_type +'("'+root.text+'")')
+            return obj
+        elif self._is_callable(_type):
+            _code = stdm.loads(eval(root.text))
+            obj = types.FunctionType(_code, globals())
             return obj
         elif self._is_sequence(_type):
             if _type != 'dict':
@@ -275,8 +285,8 @@ class XMLMarshaller:
             return obj
 
         else:
-            print ("Undefined type")
-            raise RuntimeError()
+            obj = None
+            return obj
 
     def _get_type(self, obj):
         """Returns type of object"""
